@@ -1,0 +1,3 @@
+[submodule "lxmf-bot"]
+	path = lxmf-bot
+	url = https://github.com/DayleDrinkwater/lxmf-bot.git
