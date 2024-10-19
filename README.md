@@ -3,4 +3,4 @@ A bot to tell you the weather
 
 
 requires some stuff:
-``` pip install lxmf rns
+``pip install lxmf rns
