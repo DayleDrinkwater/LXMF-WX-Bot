@@ -2,6 +2,7 @@ import requests
 from maidenhead import to_location
 from lxmfbot.lxmfbot import LXMFBot
 from datetime import datetime
+import re
 
 # Function to convert Maidenhead gridsquare to latitude and longitude
 def gridsquare_to_latlon(gridsquare):
@@ -55,7 +56,7 @@ def fetch_weather(lat, lon, option):
 def fetch_nws_warnings(lat, lon, timeout=10):
     url = f"https://api.weather.gov/alerts/active?point={lat},{lon}"
     try:
-        response = requests.get(url, headers=headers, timeout=timeout)
+        response = requests.get(url, timeout=timeout)
         if response.status_code == 200:
             data = response.json()
             alerts = data.get('features', [])
@@ -107,7 +108,13 @@ def get_weather_condition(code):
     return weather_conditions.get(code, "Unknown")
 
 # Create an instance of LXMFBot
-bot = LXMFBot("Test-WeatherBot")
+bot = LXMFBot("WeatherBot - Send me ? for help")
+
+def sanitize_content(content):
+    # Basic sanitization: ensure the content is alphanumeric and spaces
+    if not re.match(r'^[A-Za-z0-9\s]+$', content):
+        raise ValueError("Invalid content format")
+    return content
 
 # Define a function to handle received messages
 @bot.received
@@ -117,7 +124,7 @@ def handle_msg(msg):
         help_message = (
             "To use this bot, send a message with a gridsquare location.\n"
             "The bot will respond with the current weather information for that location.\n"
-            "Example: 'FN31pr'\n"
+            "Example: 'IO83PK'\n"
             "Send 'forecast <gridsquare>' to get a 7-day weather forecast.\n"
             "Send 'warnings <gridsquare>' to get current weather warnings (US Only).\n"
             "Send 'Help' or '?' to see this message again.\n"
@@ -125,35 +132,31 @@ def handle_msg(msg):
             "https://github.com/DayleDrinkwater/LXMF-WX-Bot"
         )
         msg.reply(help_message)
-    elif content.lower().startswith('forecast'):
-        try:
-            gridsquare = content.split()[1]
-            lat, lon = gridsquare_to_latlon(gridsquare)
-            forecast_info = fetch_weather(lat, lon, option='forecast')
-            warnings_info = fetch_nws_warnings(lat, lon)
-            if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
-                forecast_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
-            msg.reply(forecast_info + "\nWeather data by Open-Meteo.com")
-        except Exception as e:
-            msg.reply(f"Error: {str(e)}")
-    elif content.lower().startswith('warnings'):
-        try:
-            gridsquare = content.split()[1]
-            lat, lon = gridsquare_to_latlon(gridsquare)
-            warnings_info = fetch_nws_warnings(lat, lon)
-            msg.reply(warnings_info)
-        except Exception as e:
-            msg.reply(f"Error: {str(e)}")
     else:
         try:
-            lat, lon = gridsquare_to_latlon(content)
-            weather_info = fetch_weather(lat, lon, option='default')
-            warnings_info = fetch_nws_warnings(lat, lon)
-            if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
-                weather_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
-            msg.reply(weather_info + "\nWeather data by Open-Meteo.com")
-        except Exception as e:
-            msg.reply(f"Error: {str(e)}")
+            sanitized_content = sanitize_content(content)
+            if sanitized_content.lower().startswith('forecast'):
+                gridsquare = sanitized_content.split()[1]
+                lat, lon = gridsquare_to_latlon(gridsquare)
+                forecast_info = fetch_weather(lat, lon, option='forecast')
+                warnings_info = fetch_nws_warnings(lat, lon)
+                if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
+                    forecast_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
+                msg.reply(forecast_info + "\nWeather data by Open-Meteo.com")
+            elif sanitized_content.lower().startswith('warnings'):
+                gridsquare = sanitized_content.split()[1]
+                lat, lon = gridsquare_to_latlon(gridsquare)
+                warnings_info = fetch_nws_warnings(lat, lon)
+                msg.reply(warnings_info)
+            else:
+                lat, lon = gridsquare_to_latlon(sanitized_content)
+                weather_info = fetch_weather(lat, lon, option='default')
+                warnings_info = fetch_nws_warnings(lat, lon)
+                if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
+                    weather_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
+                msg.reply(weather_info + "\nWeather data by Open-Meteo.com")
+        except Exception:
+            msg.reply(f"Error: Something went wrong.")
 
 # Run the bot
 bot.run()
