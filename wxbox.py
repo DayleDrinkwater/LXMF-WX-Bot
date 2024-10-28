@@ -155,8 +155,8 @@ def handle_msg(msg):
                 if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
                     weather_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
                 msg.reply(weather_info + "\nWeather data by Open-Meteo.com")
-        except Exception:
-            msg.reply(f"Error: Something went wrong.")
+        except Exception as e:
+            msg.reply(f"Error: {str(e)}")
 
 # Run the bot
 bot.run()
