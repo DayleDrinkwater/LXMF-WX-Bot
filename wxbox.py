@@ -108,7 +108,7 @@ def get_weather_condition(code):
     return weather_conditions.get(code, "Unknown")
 
 # Create an instance of LXMFBot
-bot = LXMFBot("WeatherBot - Send me ? for help")
+bot = LXMFBot("Weather Bot - Send 'Help' for more info")
 
 def sanitize_content(content):
     # Basic sanitization: ensure the content is alphanumeric and spaces
