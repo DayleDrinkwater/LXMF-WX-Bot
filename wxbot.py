@@ -3,6 +3,9 @@ from maidenhead import to_location
 from lxmfbot.lxmfbot import LXMFBot
 from datetime import datetime
 import re
+import base64
+from PIL import Image
+from io import BytesIO
 
 # Function to convert Maidenhead gridsquare to latitude and longitude
 def gridsquare_to_latlon(gridsquare):
@@ -107,6 +110,30 @@ def get_weather_condition(code):
     }
     return weather_conditions.get(code, "Unknown")
 
+# Function to map latitude and longitude to NESDIS sector
+def latlon_to_sector(lat, lon):
+
+#I hate this
+#There should be an option for "satellite PSW" or something instead of just basing it off of the lat/lon of the user
+
+    if 25 <= lat <= 50 and -125 <= lon <= -66:
+        if lon <= -109:
+            return "https://cdn.star.nesdis.noaa.gov/GOES18/ABI/CONUS/GEOCOLOR/416x250.jpg"  # Western US
+        else:
+            return "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/CONUS/GEOCOLOR/625x375.jpg"  # Eastern US
+    elif lat >= 54 and lat <= 72 and lon >= -170 and lon <= -130:
+        return "https://cdn.star.nesdis.noaa.gov/GOES18/ABI/SECTOR/ak/GEOCOLOR/250x250.jpg"  # Alaska
+    elif lat >= 18 and lat <= 23 and lon >= -161 and lon <= -154:
+        return "https://cdn.star.nesdis.noaa.gov/GOES18/ABI/SECTOR/hi/GEOCOLOR/300x300.jpg"  # Hawaii
+    elif lat >= 17 and lat <= 19 and lon >= -68 and lon <= -65:
+        return "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/pr/GEOCOLOR/300x300.jpg"  # Puerto Rico
+    elif lat >= 49 and lat <= 61 and lon >= -10 and lon <= 2:
+        return "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/na/GEOCOLOR/450x270.jpg"  # UK
+    elif lat >= 36 and lat <= 42 and lon >= -10 and lon <= -6:
+        return "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/na/GEOCOLOR/450x270.jpg"  # Portugal
+    else:
+        return f"https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/678x678.jpg"  # Full Disk
+
 # Create an instance of LXMFBot
 bot = LXMFBot("Weather Bot - Send 'Help' for more info")
 
@@ -125,8 +152,14 @@ def handle_msg(msg):
             "To use this bot, send a message with a gridsquare location.\n"
             "The bot will respond with the current weather information for that location.\n"
             "Example: 'IO83PK'\n"
+            "\n"
             "Send 'forecast <gridsquare>' to get a 7-day weather forecast.\n"
+            "\n"
             "Send 'warnings <gridsquare>' to get current weather warnings (US Only).\n"
+            "\n"
+            "Send 'satellite <gridsquare> [full]' to receive the latest satellite image. Adding 'full' will send the uncompressed version.\n"
+            "\n"
+            "\n"
             "Send 'Help' or '?' to see this message again.\n"
             "Weather data by Open-Meteo.com\n"
             "https://github.com/DayleDrinkwater/LXMF-WX-Bot"
@@ -148,6 +181,34 @@ def handle_msg(msg):
                 lat, lon = gridsquare_to_latlon(gridsquare)
                 warnings_info = fetch_nws_warnings(lat, lon)
                 msg.reply(warnings_info)
+            elif sanitized_content.lower().startswith('satellite'):
+                try:
+                    parts = sanitized_content.split()
+                    if len(parts) >= 2:
+                        _, gridsquare = parts[:2]
+                        full_image = len(parts) == 3 and parts[2].lower() == 'full'
+                        lat, lon = gridsquare_to_latlon(gridsquare)
+
+                        sector_url = latlon_to_sector(lat, lon)
+
+                        # Fetch the image from the sector URL
+                        response = requests.get(sector_url)
+                        if response.status_code == 200:
+                            image = Image.open(BytesIO(response.content))
+                            buffered = BytesIO()
+                            if full_image:
+                                image.save(buffered, format="JPEG")
+                            else:
+                                # Save the image with lower quality for lossy compression
+                                image.save(buffered, format="JPEG", quality=50)
+                            image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                            msg.reply(f"Satellite image fetched successfully.", image=image_base64)
+                        else:
+                            msg.reply("Failed to fetch satellite image. Try again in a few seconds.")
+                    else:
+                        msg.reply("Usage: satellite <gridsquare> [full]")
+                except Exception as e:
+                    msg.reply(f"Error fetching satellite image: {e}")
             else:
                 lat, lon = gridsquare_to_latlon(sanitized_content)
                 weather_info = fetch_weather(lat, lon, option='default')
