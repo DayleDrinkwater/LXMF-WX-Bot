@@ -13,11 +13,6 @@ from sat import latlon_to_sector
 # Create an instance of LXMFBot
 bot = LXMFBot("Weather Bot - Send 'Help' for more info",announce=36000)
 
-def sanitize_content(content):
-    # Basic sanitization: ensure the content is alphanumeric and spaces
-    if not re.match(r'^[A-Za-z0-9\s]+$', content):
-        raise ValueError("Invalid content format")
-    return content
 
 def send_help_message(msg):
     help_message = (
@@ -78,12 +73,19 @@ def handle_satellite_request(gridsquare, msg):
 @bot.received
 def handle_msg(msg):
     content = msg.content.strip()
+    
+    # Validate the entire input
+    if not re.match(r'^[a-zA-Z0-9\s?]+$', content):
+        msg.reply("Invalid input. Only alphanumeric characters and spaces are allowed.")
+        return
+    
     if content.lower() in ['help', '?']:
         send_help_message(msg)
     else:
         try:
             command, *args = content.split()
             command = command.lower()
+            
             handlers = {
                 'now': handle_now_request,
                 'forecast': handle_forecast_request,
