@@ -9,7 +9,7 @@ def gridsquare_to_latlon(gridsquare):
 
 # Dictionary to map weather options to their respective API URLs
 WEATHER_API_URLS = {
-    'default': "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true",
+    'now': "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true",
     'forecast': "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto"
 }
 
