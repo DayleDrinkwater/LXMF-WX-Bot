@@ -6,136 +6,12 @@ import re
 import base64
 from PIL import Image
 from io import BytesIO
-
-# Function to convert Maidenhead gridsquare to latitude and longitude
-def gridsquare_to_latlon(gridsquare):
-    lat, lon = to_location(gridsquare)
-    return lat, lon
-
-# Dictionary to map weather options to their respective API URLs
-WEATHER_API_URLS = {
-    'default': "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true",
-    'forecast': "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto"
-}
-
-# Helper function to get the appropriate URL based on the weather option
-def get_weather_url(lat, lon, option):
-    if option in WEATHER_API_URLS:
-        return WEATHER_API_URLS[option].format(lat=lat, lon=lon)
-    else:
-        raise ValueError(f"Unknown weather option: {option}")
-
-# Function to fetch weather data from Open-Meteo API
-def fetch_weather(lat, lon, option):
-    url = get_weather_url(lat, lon, option)
-    
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        if option == 'default':
-            current_weather = data['current_weather']
-            return (
-                f"Temperature: {current_weather['temperature']}°C, "
-                f"Wind Speed: {current_weather['windspeed']} km/h, "
-                f"Condition: {get_weather_condition(current_weather['weathercode'])}"
-            )
-        if option == 'forecast':
-            daily = data['daily']
-            forecast_message = "7-Day Forecast:\n"
-            for i in range(7):
-                date = datetime.strptime(daily['time'][i], '%Y-%m-%d')
-                day_name = date.strftime('%A')
-                weather_code = daily['weathercode'][i]
-                weather_condition = get_weather_condition(weather_code)
-                forecast_message += (
-                    f"{day_name}: Max Temp: {daily['temperature_2m_max'][i]}°C, "
-                    f"Min Temp: {daily['temperature_2m_min'][i]}°C, Condition: {weather_condition}\n"
-                )
-            return forecast_message
-    else:
-        return "Failed to fetch weather data."
-
-# Function to fetch weather warnings from NWS API
-def fetch_nws_warnings(lat, lon, timeout=10):
-    url = f"https://api.weather.gov/alerts/active?point={lat},{lon}"
-    try:
-        response = requests.get(url, timeout=timeout)
-        if response.status_code == 200:
-            data = response.json()
-            alerts = data.get('features', [])
-            if alerts:
-                warnings = []
-                for alert in alerts:
-                    properties = alert['properties']
-                    warnings.append(f"{properties['event']}: {properties['description']}")
-                return "\n".join(warnings)
-            else:
-                return "No weather warnings."
-        else:
-            return "Failed to fetch weather warnings."
-    except requests.exceptions.Timeout:
-        return "Request timed out while fetching weather warnings."
-
-# Function to map weather codes to conditions
-def get_weather_condition(code):
-    weather_conditions = {
-        0: "Clear sky",
-        1: "Mainly clear",
-        2: "Partly cloudy",
-        3: "Overcast",
-        45: "Fog",
-        48: "Depositing rime fog",
-        51: "Drizzle: Light",
-        53: "Drizzle: Moderate",
-        55: "Drizzle: Dense intensity",
-        56: "Freezing Drizzle: Light",
-        57: "Freezing Drizzle: Dense intensity",
-        61: "Rain: Slight",
-        63: "Rain: Moderate",
-        65: "Rain: Heavy intensity",
-        66: "Freezing Rain: Light",
-        67: "Freezing Rain: Heavy intensity",
-        71: "Snow fall: Slight",
-        73: "Snow fall: Moderate",
-        75: "Snow fall: Heavy intensity",
-        77: "Snow grains",
-        80: "Rain showers: Slight",
-        81: "Rain showers: Moderate",
-        82: "Rain showers: Violent",
-        85: "Snow showers: Slight",
-        86: "Snow showers: Heavy",
-        95: "Thunderstorm: Slight or moderate",
-        96: "Thunderstorm with slight hail",
-        99: "Thunderstorm with heavy hail"
-    }
-    return weather_conditions.get(code, "Unknown")
-
-# Function to map latitude and longitude to NESDIS sector
-def latlon_to_sector(lat, lon):
-
-#I hate this
-#There should be an option for "satellite PSW" or something instead of just basing it off of the lat/lon of the user
-
-    if 25 <= lat <= 50 and -125 <= lon <= -66:
-        if lon <= -109:
-            return "https://cdn.star.nesdis.noaa.gov/GOES18/ABI/CONUS/GEOCOLOR/416x250.jpg"  # Western US
-        else:
-            return "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/CONUS/GEOCOLOR/625x375.jpg"  # Eastern US
-    elif lat >= 54 and lat <= 72 and lon >= -170 and lon <= -130:
-        return "https://cdn.star.nesdis.noaa.gov/GOES18/ABI/SECTOR/ak/GEOCOLOR/250x250.jpg"  # Alaska
-    elif lat >= 18 and lat <= 23 and lon >= -161 and lon <= -154:
-        return "https://cdn.star.nesdis.noaa.gov/GOES18/ABI/SECTOR/hi/GEOCOLOR/300x300.jpg"  # Hawaii
-    elif lat >= 17 and lat <= 19 and lon >= -68 and lon <= -65:
-        return "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/pr/GEOCOLOR/300x300.jpg"  # Puerto Rico
-    elif lat >= 49 and lat <= 61 and lon >= -10 and lon <= 2:
-        return "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/na/GEOCOLOR/450x270.jpg"  # UK
-    elif lat >= 36 and lat <= 42 and lon >= -10 and lon <= -6:
-        return "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/na/GEOCOLOR/450x270.jpg"  # Portugal
-    else:
-        return f"https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/678x678.jpg"  # Full Disk
+from weather import gridsquare_to_latlon, fetch_weather
+from wxwarnings import fetch_nws_warnings
+from sat import latlon_to_sector
 
 # Create an instance of LXMFBot
-bot = LXMFBot("Weather Bot - Send 'Help' for more info")
+bot = LXMFBot("Weather Bot - Send 'Help' for more info",announce=36000)
 
 def sanitize_content(content):
     # Basic sanitization: ensure the content is alphanumeric and spaces
@@ -143,79 +19,81 @@ def sanitize_content(content):
         raise ValueError("Invalid content format")
     return content
 
+def send_help_message(msg):
+    help_message = (
+        "To use this bot, send a message with a gridsquare location.\n"
+        "The bot will respond with the current weather information for that location.\n"
+        "Example: 'IO83PK'\n"
+        "\n"
+        "Send 'now <gridsquare>' to get the current weather.\n"
+        "Send 'forecast <gridsquare>' to get a 7-day weather forecast.\n"
+        "\n"
+        "Send 'warnings <gridsquare>' to get current weather warnings (US Only).\n"
+        "\n"
+        "Send 'satellite <gridsquare>' to receive the latest satellite image.\n"
+        "\n"
+        "\n"
+        "Send 'Help' or '?' to see this message again.\n"
+        "Weather data by Open-Meteo.com\n"
+        "https://github.com/DayleDrinkwater/LXMF-WX-Bot"
+    )
+    msg.reply(help_message)
+
+def handle_now_request(gridsquare, msg):
+    lat, lon = gridsquare_to_latlon(gridsquare)
+    weather_info = fetch_weather(lat, lon, option='now')
+    warnings_info = fetch_nws_warnings(lat, lon)
+    if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
+        weather_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
+    msg.reply(weather_info + "\nWeather data by Open-Meteo.com")
+
+def handle_forecast_request(gridsquare, msg):
+    lat, lon = gridsquare_to_latlon(gridsquare)
+    forecast_info = fetch_weather(lat, lon, option='forecast')
+    warnings_info = fetch_nws_warnings(lat, lon)
+    if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
+        forecast_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
+    msg.reply(forecast_info + "\nWeather data by Open-Meteo.com")
+
+def handle_warnings_request(gridsquare, msg):
+    lat, lon = gridsquare_to_latlon(gridsquare)
+    warnings_info = fetch_nws_warnings(lat, lon)
+    msg.reply(warnings_info)
+
+def handle_satellite_request(gridsquare, msg):
+
+            lat, lon = gridsquare_to_latlon(gridsquare)
+            sector_url = latlon_to_sector(lat, lon)
+            response = requests.get(sector_url)
+            if response.status_code == 200:
+                image = Image.open(BytesIO(response.content))
+                buffered = BytesIO()
+                image.save(buffered, format="JPEG", quality=50)
+                image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                msg.reply(f"Satellite image fetched successfully.", image=image_base64)
+            else:
+                msg.reply("Failed to fetch satellite image. Try again in a few seconds.")
+
 # Define a function to handle received messages
 @bot.received
 def handle_msg(msg):
     content = msg.content.strip()
     if content.lower() in ['help', '?']:
-        help_message = (
-            "To use this bot, send a message with a gridsquare location.\n"
-            "The bot will respond with the current weather information for that location.\n"
-            "Example: 'IO83PK'\n"
-            "\n"
-            "Send 'forecast <gridsquare>' to get a 7-day weather forecast.\n"
-            "\n"
-            "Send 'warnings <gridsquare>' to get current weather warnings (US Only).\n"
-            "\n"
-            "Send 'satellite <gridsquare> [full]' to receive the latest satellite image. Adding 'full' will send the uncompressed version.\n"
-            "\n"
-            "\n"
-            "Send 'Help' or '?' to see this message again.\n"
-            "Weather data by Open-Meteo.com\n"
-            "https://github.com/DayleDrinkwater/LXMF-WX-Bot"
-        )
-        msg.reply(help_message)
+        send_help_message(msg)
     else:
         try:
-            sanitized_content = sanitize_content(content)
-            if sanitized_content.lower().startswith('forecast'):
-                gridsquare = sanitized_content.split()[1]
-                lat, lon = gridsquare_to_latlon(gridsquare)
-                forecast_info = fetch_weather(lat, lon, option='forecast')
-                warnings_info = fetch_nws_warnings(lat, lon)
-                if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
-                    forecast_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
-                msg.reply(forecast_info + "\nWeather data by Open-Meteo.com")
-            elif sanitized_content.lower().startswith('warnings'):
-                gridsquare = sanitized_content.split()[1]
-                lat, lon = gridsquare_to_latlon(gridsquare)
-                warnings_info = fetch_nws_warnings(lat, lon)
-                msg.reply(warnings_info)
-            elif sanitized_content.lower().startswith('satellite'):
-                try:
-                    parts = sanitized_content.split()
-                    if len(parts) >= 2:
-                        _, gridsquare = parts[:2]
-                        full_image = len(parts) == 3 and parts[2].lower() == 'full'
-                        lat, lon = gridsquare_to_latlon(gridsquare)
-
-                        sector_url = latlon_to_sector(lat, lon)
-
-                        # Fetch the image from the sector URL
-                        response = requests.get(sector_url)
-                        if response.status_code == 200:
-                            image = Image.open(BytesIO(response.content))
-                            buffered = BytesIO()
-                            if full_image:
-                                image.save(buffered, format="JPEG")
-                            else:
-                                # Save the image with lower quality for lossy compression
-                                image.save(buffered, format="JPEG", quality=50)
-                            image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                            msg.reply(f"Satellite image fetched successfully.", image=image_base64)
-                        else:
-                            msg.reply("Failed to fetch satellite image. Try again in a few seconds.")
-                    else:
-                        msg.reply("Usage: satellite <gridsquare> [full]")
-                except Exception as e:
-                    msg.reply(f"Error fetching satellite image: {e}")
+            command, *args = content.split()
+            command = command.lower()
+            handlers = {
+                'now': handle_now_request,
+                'forecast': handle_forecast_request,
+                'warnings': handle_warnings_request,
+                'satellite': handle_satellite_request,
+            }
+            if command in handlers:
+                handlers[command](*args, msg)
             else:
-                lat, lon = gridsquare_to_latlon(sanitized_content)
-                weather_info = fetch_weather(lat, lon, option='default')
-                warnings_info = fetch_nws_warnings(lat, lon)
-                if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
-                    weather_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
-                msg.reply(weather_info + "\nWeather data by Open-Meteo.com")
+                msg.reply("Invalid command. Send 'Help' or '?' for a list of commands.")
         except Exception as e:
             msg.reply(f"Error: {str(e)}")
 
