@@ -6,7 +6,7 @@ import re
 import base64
 from PIL import Image
 from io import BytesIO
-from weather import gridsquare_to_latlon, fetch_weather
+from weather import gridsquare_to_latlon,location_name_to_latlon,is_gridsquare, fetch_weather
 from wxwarnings import fetch_nws_warnings
 from sat import latlon_to_sector
 
@@ -16,14 +16,14 @@ bot = LXMFBot("Weather Bot - Send 'Help' for more info",announce=36000)
 
 def send_help_message(msg):
     help_message = (
-        "To use this bot, send a message with a command followed by a gridsquare location.\n"
+        "To use this bot, send a message with a command followed by a gridsquare or location.\n"
         "The bot will respond with the requested weather information for that location.\n"
         "\n"
         "Commands:\n"
-        "  - 'now <gridsquare>': Get the current weather.\n"
-        "  - 'forecast <gridsquare>': Get a 7-day weather forecast.\n"
-        "  - 'warnings <gridsquare>': Get current weather warnings (US Only).\n"
-        "  - 'satellite <gridsquare>': Receive the latest satellite image.\n"
+        "  - 'now <gridsquare/location>': Get the current weather.\n"
+        "  - 'forecast <gridsquare/location>': Get a 7-day weather forecast.\n"
+        "  - 'warnings <gridsquare/location>': Get current weather warnings (US Only).\n"
+        "  - 'satellite <gridsquare/location>': Receive the latest satellite image.\n"
         "\n"
         "Send 'Help' or '?' to see this message again.\n"
         "Weather data by Open-Meteo.com\n"
@@ -31,40 +31,67 @@ def send_help_message(msg):
     )
     msg.reply(help_message)
 
-def handle_now_request(gridsquare, msg):
-    lat, lon = gridsquare_to_latlon(gridsquare)
+def handle_now_request(location, msg):
+    if is_gridsquare(location):
+        lat, lon = gridsquare_to_latlon(location)
+        location_name = location
+    else:
+        lat, lon, location_name = location_name_to_latlon(location)
+        if lat is None or lon is None:
+            msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
+            return
     weather_info = fetch_weather(lat, lon, option='now')
     warnings_info = fetch_nws_warnings(lat, lon)
     if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
-        weather_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
-    msg.reply(weather_info + "\nWeather data by Open-Meteo.com")
+        weather_info += "\n⚠️ Weather warning in your area, send 'warnings <location>' for more info."
+    msg.reply(f"Current weather for {location_name}:\n{weather_info}\nWeather data by Open-Meteo.com")
 
-def handle_forecast_request(gridsquare, msg):
-    lat, lon = gridsquare_to_latlon(gridsquare)
+def handle_forecast_request(location, msg):
+    if is_gridsquare(location):
+        lat, lon = gridsquare_to_latlon(location)
+        location_name = location
+    else:
+        lat, lon, location_name = location_name_to_latlon(location)
+        if lat is None or lon is None:
+            msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
+            return
     forecast_info = fetch_weather(lat, lon, option='forecast')
     warnings_info = fetch_nws_warnings(lat, lon)
     if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
         forecast_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
-    msg.reply(forecast_info + "\nWeather data by Open-Meteo.com")
+    msg.reply(f"Weather forecast for {location_name}:\n{forecast_info}\nWeather data by Open-Meteo.com")
 
-def handle_warnings_request(gridsquare, msg):
-    lat, lon = gridsquare_to_latlon(gridsquare)
+def handle_warnings_request(location, msg):
+    if is_gridsquare(location):
+        lat, lon = gridsquare_to_latlon(location)
+        location_name = location
+    else:
+        lat, lon, location_name = location_name_to_latlon(location)
+        if lat is None or lon is None:
+            msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
+            return
     warnings_info = fetch_nws_warnings(lat, lon)
-    msg.reply(warnings_info)
+    msg.reply(f"Weather warnings for {location_name}:\n{warnings_info}")
 
-def handle_satellite_request(gridsquare, msg):
-
-            lat, lon = gridsquare_to_latlon(gridsquare)
-            sector_url = latlon_to_sector(lat, lon)
-            response = requests.get(sector_url)
-            if response.status_code == 200:
-                image = Image.open(BytesIO(response.content))
-                buffered = BytesIO()
-                image.save(buffered, format="JPEG", quality=50)
-                image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                msg.reply(f"Satellite image fetched successfully.", image=image_base64)
-            else:
-                msg.reply("Failed to fetch satellite image. Try again in a few seconds.")
+def handle_satellite_request(location, msg):
+    if is_gridsquare(location):
+        lat, lon = gridsquare_to_latlon(location)
+        location_name = location
+    else:
+        lat, lon, location_name = location_name_to_latlon(location)
+        if lat is None or lon is None:
+            msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
+            return
+    sector_url = latlon_to_sector(lat, lon)
+    response = requests.get(sector_url)
+    if response.status_code == 200:
+        image = Image.open(BytesIO(response.content))
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG", quality=50)
+        image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        msg.reply(f"Satellite image for {location_name} fetched successfully.", image=image_base64)
+    else:
+        msg.reply(f"Failed to fetch satellite image for {location_name}. Try again in a few seconds.")
 
 # Define a function to handle received messages
 @bot.received
@@ -72,7 +99,7 @@ def handle_msg(msg):
     content = msg.content.strip()
     
     # Validate the entire input
-    if not re.match(r'^[a-zA-Z0-9\s?]+$', content):
+    if not re.match(r'^[a-zA-Z0-9\s?,]+$', content):
         msg.reply("Invalid input. Only alphanumeric characters and spaces are allowed.")
         return
     
@@ -82,6 +109,7 @@ def handle_msg(msg):
         try:
             command, *args = content.split()
             command = command.lower()
+            location = ' '.join(args)  # Join the remaining parts to form the location
             
             handlers = {
                 'now': handle_now_request,
@@ -90,7 +118,7 @@ def handle_msg(msg):
                 'satellite': handle_satellite_request,
             }
             if command in handlers:
-                handlers[command](*args, msg)
+                handlers[command](location, msg)  # Pass the location as a single argument
             else:
                 msg.reply("Invalid command. Send 'Help' or '?' for a list of commands.")
         except Exception as e:

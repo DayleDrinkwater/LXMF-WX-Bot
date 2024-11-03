@@ -1,11 +1,40 @@
 import requests
 from maidenhead import to_location
 from datetime import datetime
+import re
 
 # Function to convert Maidenhead gridsquare to latitude and longitude
 def gridsquare_to_latlon(gridsquare):
     lat, lon = to_location(gridsquare)
     return lat, lon
+
+def location_name_to_latlon(location_name):
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {
+        'q': location_name,
+        'format': 'json',
+        'limit': 1
+    }
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        data = response.json()
+        if data:
+            return float(data[0]['lat']), float(data[0]['lon']), data[0]['display_name']
+    return None, None, None
+
+def is_gridsquare(location):
+    """
+    Determine if the provided location is a Maidenhead gridsquare.
+    
+    Args:
+    location (str): The location string provided by the user.
+    
+    Returns:
+    bool: True if the location is a gridsquare, False otherwise.
+    """
+    gridsquare_pattern = r'^[A-R][A-R][0-9][0-9][A-X][A-X]?$'
+    return bool(re.match(gridsquare_pattern, location.upper()))
+
 
 # Dictionary to map weather options to their respective API URLs
 WEATHER_API_URLS = {
