@@ -6,7 +6,7 @@ import re
 import base64
 from PIL import Image
 from io import BytesIO
-from weather import gridsquare_to_latlon,location_name_to_latlon,is_gridsquare, fetch_weather
+from weather import get_lat_lon, fetch_weather
 from wxwarnings import fetch_nws_warnings
 from sat import latlon_to_sector
 
@@ -31,57 +31,49 @@ def send_help_message(msg):
     )
     msg.reply(help_message)
 
+
+
 def handle_now_request(location, msg):
-    if is_gridsquare(location):
-        lat, lon = gridsquare_to_latlon(location)
-        location_name = location
-    else:
-        lat, lon, location_name = location_name_to_latlon(location)
-        if lat is None or lon is None:
-            msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
-            return
+    lat, lon, location_name = get_lat_lon(location)
+    if lat is None or lon is None:
+        msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
+        return
     weather_info = fetch_weather(lat, lon, option='now')
     warnings_info = fetch_nws_warnings(lat, lon)
     if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
         weather_info += "\n⚠️ Weather warning in your area, send 'warnings <location>' for more info."
     msg.reply(f"Current weather for {location_name}:\n{weather_info}\nWeather data by Open-Meteo.com")
 
+
+
 def handle_forecast_request(location, msg):
-    if is_gridsquare(location):
-        lat, lon = gridsquare_to_latlon(location)
-        location_name = location
-    else:
-        lat, lon, location_name = location_name_to_latlon(location)
-        if lat is None or lon is None:
-            msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
-            return
+    lat, lon, location_name = get_lat_lon(location)
+    if lat is None or lon is None:
+        msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
+        return
     forecast_info = fetch_weather(lat, lon, option='forecast')
     warnings_info = fetch_nws_warnings(lat, lon)
     if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
         forecast_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
     msg.reply(f"Weather forecast for {location_name}:\n{forecast_info}\nWeather data by Open-Meteo.com")
 
+
+
 def handle_warnings_request(location, msg):
-    if is_gridsquare(location):
-        lat, lon = gridsquare_to_latlon(location)
-        location_name = location
-    else:
-        lat, lon, location_name = location_name_to_latlon(location)
-        if lat is None or lon is None:
-            msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
-            return
+    lat, lon, location_name = get_lat_lon(location)
+    if lat is None or lon is None:
+        msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
+        return
     warnings_info = fetch_nws_warnings(lat, lon)
     msg.reply(f"Weather warnings for {location_name}:\n{warnings_info}")
 
+
+
 def handle_satellite_request(location, msg):
-    if is_gridsquare(location):
-        lat, lon = gridsquare_to_latlon(location)
-        location_name = location
-    else:
-        lat, lon, location_name = location_name_to_latlon(location)
-        if lat is None or lon is None:
-            msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
-            return
+    lat, lon, location_name = get_lat_lon(location)
+    if lat is None or lon is None:
+        msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
+        return
     sector_url = latlon_to_sector(lat, lon)
     response = requests.get(sector_url)
     if response.status_code == 200:

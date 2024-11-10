@@ -3,6 +3,15 @@ from maidenhead import to_location
 from datetime import datetime
 import re
 
+#checks to see if the location is a Maidenhead Gridsquare or a location name, returns the latitude and longitude of the location
+def get_lat_lon(location):
+    if is_gridsquare(location):
+        lat, lon = gridsquare_to_latlon(location)
+        location_name = location
+    else:
+        lat, lon, location_name = location_name_to_latlon(location)
+    return lat, lon, location_name
+
 # Function to convert Maidenhead gridsquare to latitude and longitude
 def gridsquare_to_latlon(gridsquare):
     lat, lon = to_location(gridsquare)
@@ -15,7 +24,10 @@ def location_name_to_latlon(location_name):
         'format': 'json',
         'limit': 1
     }
-    response = requests.get(url, params=params)
+    headers = {
+        'User-Agent': 'LXMFWxBot/1.0 (https://github.com/DayleDrinkwater/LXMF-WX-Bot)'
+    }
+    response = requests.get(url, params=params, headers=headers)
     if response.status_code == 200:
         data = response.json()
         if data:
