@@ -41,7 +41,7 @@ def handle_now_request(location, msg):
     weather_info = fetch_weather(lat, lon, option='now')
     warnings_info = fetch_nws_warnings(lat, lon)
     if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
-        weather_info += "\n⚠️ Weather warning in your area, send 'warnings <location>' for more info."
+        weather_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>/<location>' for more info."
     msg.reply(f"Current weather for {location_name}:\n{weather_info}\nWeather data by Open-Meteo.com")
 
 
@@ -54,7 +54,7 @@ def handle_forecast_request(location, msg):
     forecast_info = fetch_weather(lat, lon, option='forecast')
     warnings_info = fetch_nws_warnings(lat, lon)
     if warnings_info not in ["Failed to fetch weather warnings.", "No weather warnings."]:
-        forecast_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>' for more info."
+        forecast_info += "\n⚠️ Weather warning in your area, send 'warnings <gridsquare>/<location>' for more info."
     msg.reply(f"Weather forecast for {location_name}:\n{forecast_info}\nWeather data by Open-Meteo.com")
 
 
@@ -65,7 +65,15 @@ def handle_warnings_request(location, msg):
         msg.reply("Invalid location. Please provide a valid gridsquare or place name.")
         return
     warnings_info = fetch_nws_warnings(lat, lon)
-    msg.reply(f"Weather warnings for {location_name}:\n{warnings_info}")
+    if isinstance(warnings_info, list):
+        total_warnings = len(warnings_info)
+        if total_warnings > 0:
+            for i, warning in enumerate(warnings_info, start=1):
+                msg.reply(f"Warning {i}/{total_warnings}:\nEvent: {warning['event']}\nHeadline: {warning['headline']}\nDescription: {warning['description']}\nInstruction: {warning['instruction']}\n")
+        else:
+            msg.reply("No weather warnings.")
+    else:
+        msg.reply(warnings_info)
 
 
 

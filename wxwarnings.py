@@ -2,13 +2,22 @@ import requests
 
 # Function to fetch weather warnings from NWS API
 def fetch_nws_warnings(lat, lon):
-    # Example implementation, replace with actual API call
     url = f"https://api.weather.gov/alerts/active?point={lat},{lon}"
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
         if data['features']:
-            return "⚠️ Weather warning in your area."
+            warnings = []
+            for feature in data['features']:
+                properties = feature['properties']
+                warning = {
+                    'event': properties['event'],
+                    'headline': properties['headline'],
+                    'description': properties['description'],
+                    'instruction': properties['instruction']
+                }
+                warnings.append(warning)
+            return warnings
         else:
             return "No weather warnings."
     else:
