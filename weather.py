@@ -3,49 +3,39 @@ from maidenhead import to_location
 from datetime import datetime
 import re
 
-#checks to see if the location is a Maidenhead Gridsquare or a location name, returns the latitude and longitude of the location
-def get_lat_lon(location):
-    if is_gridsquare(location):
-        lat, lon = gridsquare_to_latlon(location)
-        location_name = location
-    else:
-        lat, lon, location_name = location_name_to_latlon(location)
-    return lat, lon, location_name
-
-# Function to convert Maidenhead gridsquare to latitude and longitude
-def gridsquare_to_latlon(gridsquare):
-    lat, lon = to_location(gridsquare)
-    return lat, lon
-
-def location_name_to_latlon(location_name):
+# Returns the latitude, longitude, display name and country code of the location name
+def get_lat_lon(location_name):
     url = "https://nominatim.openstreetmap.org/search"
     params = {
         'q': location_name,
         'format': 'json',
+        'addressdetails': 1,
         'limit': 1
     }
     headers = {
-        'User-Agent': 'LXMFWxBot/1.0 (https://github.com/DayleDrinkwater/LXMF-WX-Bot)'
+        'User-Agent': 'LXMFWxBot/1.0 (https://github.com/DayleDrinkwater/LXMF-WX-Bot)',
+        'Accept-Language': 'en-GB'
     }
     response = requests.get(url, params=params, headers=headers)
+    print(f"Request URL: {response.url}")
+    print(f"Response Status Code: {response.status_code}")
     if response.status_code == 200:
         data = response.json()
+        print(f"Response Data: {data}")
         if data:
-            return float(data[0]['lat']), float(data[0]['lon']), data[0]['display_name']
-    return None, None, None
-
-def is_gridsquare(location):
-    """
-    Determine if the provided location is a Maidenhead gridsquare.
-    
-    Args:
-    location (str): The location string provided by the user.
-    
-    Returns:
-    bool: True if the location is a gridsquare, False otherwise.
-    """
-    gridsquare_pattern = r'^[A-R][A-R][0-9][0-9][A-X][A-X]?$'
-    return bool(re.match(gridsquare_pattern, location.upper()))
+            lat = float(data[0]['lat'])
+            lon = float(data[0]['lon'])
+            display_name = data[0]['display_name']
+            address = data[0].get('address', {})
+            country_code = address.get('country_code', '')
+            country = address.get('country', '')
+            print(f"Parsed Data - Lat: {lat}, Lon: {lon}, Display Name: {display_name}, Country Code: {country_code}")
+            return lat, lon, display_name, country
+        else:
+            print("No data found for the given location.")
+    else:
+        print("Failed to fetch data from the API.")
+    return None, None, None, None, None, None
 
 
 # Dictionary to map weather options to their respective API URLs
