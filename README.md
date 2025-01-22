@@ -13,7 +13,7 @@ LXMF-WX-Bot is a weather bot that provides current weather, forecasts, weather w
 
 - `now <gridsquare/location>`: Get the current weather.
 - `forecast <gridsquare/location>`: Get a 7-day weather forecast.
-- `warnings <gridsquare/location>`: Get current weather warnings (US Only).
+- `warnings <gridsquare/location>`: Get current weather warnings (US, UK, Norway and Sweden Only).
 - `satellite <gridsquare/location>`: Receive the latest satellite image.
 
 Send `Help` or `?` to see the help message again.
