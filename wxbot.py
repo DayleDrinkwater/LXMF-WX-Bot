@@ -70,7 +70,7 @@ def handle_warnings_request(location, msg):
 
 
 def handle_satellite_request(location, msg):
-    lat, lon, location_name = get_lat_lon(location)
+    lat, lon, location_name, country = get_lat_lon(location)
     if lat is None or lon is None:
         msg.reply("Invalid location. Please provide a valid place name.")
         return
